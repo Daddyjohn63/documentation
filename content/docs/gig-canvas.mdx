@@ -1,0 +1,181 @@
+---
+title: CRM Gig Canvas
+description: Gig Canvas is a CRM for the Gig Economy
+---
+
+import { Image } from '@/components/Image';
+
+It is a Modern CRM Application with Enterprise-Grade Architecture. The application provides the following functionality:
+
+- Role-Based Access Control
+- Customer Management
+- Service Management
+- Project Management
+- Task Management
+- Reporting and Analytics
+
+The app utilises cutting-edge technologies and enterprise-level architectural patterns. Here's a detailed technical breakdown:
+
+<Image
+  src="/docs/images/gig-canvas/main-image.jpg"
+  alt="Gig Canvas Architecture"
+  width={800}
+  height={600}
+/>
+
+**Here's the Gig Canvas Architecture:**
+
+## Core Technology Stack
+
+- Next.js for server-side rendering and optimal performance
+- TypeScript for type safety and enhanced developer experience
+- Tailwind CSS for responsive, utility-first styling
+- PostgreSQL with Supabase Database for serverless deployment
+- Drizzle ORM for type-safe database operations
+
+## Security & Authentication
+
+The application implements a robust, multi-layered security approach:
+
+- Multi-provider authentication supporting Email, Google, and GitHub login
+- Secure session management with HTTP-only cookies and proper CSRF protection
+- Rate limiting to prevent brute force attacks
+- Role-based access control (RBAC) with granular permissions
+- Password hashing with proper salt implementation
+- Environment-based security configurations
+
+## data validation, type safety, and security using Zod, Zod-actions, and HTML sanitization
+
+**Zod Implementation**
+
+All form inputs are validated using Zod schemas, ensuring type safety and data validation at runtime
+Custom error messages provide user-friendly feedback
+Example schema implementation:
+
+```ts
+const ClientSchema = z.object({
+  business_name: z.string().min(2).max(100),
+  primary_email: z.string().email(),
+  primary_phone: z.string().min(10),
+  business_description: z.string().min(10).max(500),
+  sales_stage: z.enum([
+    'lead',
+    'prospect',
+    'qualified_opportunity',
+    'proposal',
+    'negotiation',
+    'closed_won',
+    'closed_lost'
+  ]),
+  date_onboarded: z.date(),
+  annual_revenue_expected: z.string().optional(),
+  additional_info: z.string().optional()
+});
+```
+
+**Zod safe actions**
+
+- Server actions are wrapped with Zod validation using the createServerAction pattern
+- Type-safe communication between client and server
+- Built-in authenticated validation and error handling and type inference
+
+Example implementation:
+
+```ts
+export const createClientAction = authenticatedAction
+  .createServerAction()
+  .input(ClientSchema)
+  .handler(async ({ input, user }) => {
+    // Input is fully typed and validated
+    const client = await createClientUseCase(user, input);
+    return client;
+  });
+```
+
+**Form Handling**
+
+- React Hook Form integration with Zod for client-side validation
+- Type inference from Zod schemas to form handlers
+
+Example usage:
+
+```ts
+const form = useForm<z.infer<typeof ClientSchema>>({
+  resolver: zodResolver(ClientSchema),
+  defaultValues: {
+    sales_stage: 'lead',
+    date_onboarded: new Date()
+  }
+});
+```
+
+**HTML Sanitization**
+
+- All user-generated content is sanitized before storage and display
+- Prevention of XSS attacks through content sanitization
+
+Implementation example:
+
+```ts
+const sanitizeHtml = (content: string) => {
+  return DOMPurify.sanitize(content, {
+    ALLOWED_TAGS: ['p', 'b', 'i', 'em', 'strong', 'a'],
+    ALLOWED_ATTR: ['href']
+  });
+};
+
+// Usage in form submission
+const handleSubmit = async (data: FormData) => {
+  const sanitizedDescription = sanitizeHtml(data.business_description);
+  // Process sanitized content
+};
+```
+
+**Type Safety Benefits**
+
+- Complete type inference from schema to database
+- Runtime validation matching TypeScript types
+- Automatic error handling and type checking
+- Reduced potential for runtime errors
+
+**Error Handling**
+
+- Custom error messages for validation failures
+- Type-safe error handling across the application
+- Consistent error format for frontend display
+
+**This implementation ensures:**
+
+- Data integrity through validation
+- Type safety across the full stack
+- Protection against XSS and injection attacks
+- Consistent error handling
+- Improved developer experience with full type inference
+
+The combination of Zod, Zod-actions, and HTML sanitization creates a robust foundation for handling user input and maintaining application security.
+
+## Database Architecture
+
+The database layer demonstrates enterprise-level considerations
+
+- Comprehensive schema design using Drizzle ORM
+- Transaction management ensuring data integrity
+- Audit logging system tracking all critical operations
+- Optimized indexing for frequently accessed data
+- Efficient connection pooling for scalability
+
+## Clean Architecture & Code Quality
+
+- Clean Architecture & Code Quality
+- Error handling and logging with Sentry for production environments
+- Environment-based configuration for different deployment scenarios
+
+## Scalability Considerations
+
+- Efficient database transaction handling
+- Clear separation of concerns for future expansion
+- Modular architecture allowing for easy feature additions
+
+This application demonstrates not just technical proficiency but an understanding of enterprise software architecture, security best practices, and scalable application design. The implementation shows careful consideration of both current requirements and future scalability needs.
+
+{/* ## Cards */}
