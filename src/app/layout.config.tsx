@@ -27,7 +27,7 @@ export const baseOptions: BaseLayoutProps = {
           height={32}
           className="rounded-full"
         />
-        John Paul's Portfolio
+        John Paul&apos;s Portfolio
       </>
     )
   }
