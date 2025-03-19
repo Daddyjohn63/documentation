@@ -6,25 +6,30 @@
 @source '../../node_modules/fumadocs-ui/dist/**/*.js';
 
 /* Define custom classes using Tailwind utilities */
-/* @layer components {
+@layer components {
   .btn-primary {
     @apply px-4 py-2 rounded-lg font-semibold bg-blue-600 text-white;
   }
   .header-title {
-    @apply text-2xl font-bold text-gray-800;
+    @apply text-2xl font-bold text-gray-800 dark:text-gray-200;
   }
   h1 {
-    @apply text-3xl font-bold;
-    color: var(--color-doc-title);
+    @apply text-3xl font-bold text-gray-900 dark:text-[var(--color-doc-title)];
   }
-  h2 {
+  h2 a {
+    @apply text-2xl font-bold text-gray-900 dark:text-[var(--color-doc-title)];
+  }
+  h3 a {
+    @apply text-xl font-bold text-gray-900 dark:text-[var(--color-doc-title)];
+  }
+  h4 a {
+    @apply text-lg font-bold text-gray-900 dark:text-[var(--color-doc-title)];
+  }
+
+  /* a {
     @apply text-2xl font-bold;
     color: var(--color-doc-title);
-  }
-  h3 {
-    @apply text-xl font-bold;
-    color: var(--color-doc-title);
-  }
+  } */
 }
 
 @layer base {
@@ -32,4 +37,4 @@
     --color-mint-500: oklch(0.72 0.11 178);
     --color-doc-title: rgba(255, 228, 196, 1);
   }
-} */
+}
