@@ -1,0 +1,226 @@
+---
+title: Portfolio Blog
+description: A portfolio website and blog for my portfolio
+---
+
+import { Image } from '@/components/Image';
+
+## Introduction
+
+This is a portfolio website and blog for my portfolio. It is built with Next.js and uses the Strapi CMS to manage the content.
+
+The Next.JS application and the Strapi CMS are deployed on my own VPS with CONTABO.
+
+https://webandprosper.co.uk
+
+<Image
+  src="/docs/images/mywebsite/my-website-collage.jpg"
+  alt="Portfolio Blog"
+  width={800}
+  height={600}
+/>
+
+## Technical Architecture Overview
+
+#### Frontend Stack
+
+Next.js 14 Implementation
+-Using the latest Next.js 14 with App Router architecture
+-Implemented static site generation (SSG) for optimal performance
+-Leveraging Next.js's built-in image optimization with next/image
+-Utilizing route handlers for API endpoints
+-Implementing proper metadata for SEO optimization
+
+#### UI/UX Implementation
+
+-Modern component architecture using React 18
+-Tailwind CSS for styling with custom configuration
+-Shadcn UI components for consistent design system
+-Framer Motion for smooth animations
+-Responsive design with mobile-first approach
+-Dark mode support using next-themes
+
+#### Performance Optimizations
+
+-Image optimization with Next.js Image component
+-Font optimization using next/font
+-Code splitting and lazy loading
+-Static page generation where possible
+-Client-side navigation for smooth transitions
+
+### Backend Stack
+
+#### CMS Architecture
+
+-Strapi v5 as headless CMS
+-RESTful API integration
+-Proper error handling and type safety
+-Efficient data fetching with query optimization
+
+#### Database
+
+-PostgreSQL as database
+
+### Data Fetching Patterns
+
+```js
+// Example of optimized Strapi query
+const url =
+  `${CMS_URL}/api/posts?` +
+  qs.stringify(
+    {
+      fields: ['slug', 'title', 'subtitle', 'publishedAt'],
+      populate: {
+        categories: {
+          fields: ['title', 'slug']
+        },
+        image: {
+          fields: ['url']
+        }
+      },
+      sort: ['publishedAt:desc'],
+      pagination: { pageSize, page }
+    },
+    { encodeValuesOnly: true }
+  );
+```
+
+#### Caching Strategy
+
+-Implemented cache tags for efficient revalidation
+-Static generation with ISR (Incremental Static Regeneration)
+-Proper cache invalidation on content updates
+
+### Security Features
+
+#### API Security
+
+-Rate limiting implementation
+-Input sanitization
+-Honeypot fields for form protection
+-Secure API token handling
+-Environment variable management
+
+#### Form Handling
+
+(the contact form is built but not live yet as I have not added the production email service as yet)
+
+```js
+// Example of secure form submission
+const sanitizedValues = {
+  name: sanitizeUserInput(values.name),
+  email: sanitizeUserInput(values.email),
+  message: sanitizeUserInput(values.message)
+};
+
+// Rate limiting
+await rateLimitByIp({
+  key: 'contact-form',
+  limit: 5,
+  window: 60 * 1000
+});
+```
+
+### SEO & Analytics
+
+#### SEO Implementation
+
+-Proper metadata configuration
+-Structured data implementation
+-Sitemap generation
+-Robots.txt configuration
+-Open Graph tags
+
+#### Analytics Integration
+
+-Google Analytics integration
+-Cookie consent management
+-Privacy-focused tracking
+
+### Development Best Practices
+
+#### Code Organization
+
+-Modular component structure
+-Utility functions separation
+-Type safety with proper error handling
+-Consistent code formatting
+
+#### Build & Deployment
+
+-Optimized build process
+Environment-specific configurations
+-Proper error logging
+-Performance monitoring
+
+### Notable Technical Features
+
+#### Content Management
+
+-Dynamic content loading
+-Category-based filtering
+-Pagination implementation
+-Image optimization and management
+
+#### User Experience
+
+-Smooth page transitions
+-Loading states
+-Error boundaries
+-Form validation
+-Toast notifications
+
+#### Performance Metrics
+
+Core Web Vitals optimization
+First Contentful Paint (FCP)
+Largest Contentful Paint (LCP)
+Time to Interactive (TTI)
+
+### Development Tools & Workflow
+
+#### Development Environment
+
+ESLint configuration
+Prettier formatting
+Git workflow
+Environment variable management
+
+#### Testing & Quality Assurance
+
+Error boundary implementation
+Input validation
+API error handling
+Cross-browser testing
+
+### Future-Proofing
+
+#### Scalability Considerations
+
+Modular architecture
+Component reusability
+API versioning
+Performance optimization
+
+#### Maintenance
+
+-Clear documentation
+-Code comments
+-Error logging
+-Monitoring setup
+
+#### Cloudflare Integration
+
+-Global content delivery network (CDN) implementation
+-DDoS protection
+-SSL/TLS encryption
+
+This technical implementation demonstrates:
+
+-Modern web development best practices
+-Strong focus on performance and user experience
+-Robust security measures
+-Scalable architecture
+-SEO optimization
+-Proper error handling and monitoring
+-Clean and maintainable code structure

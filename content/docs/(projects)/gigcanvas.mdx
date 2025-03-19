@@ -10,11 +10,27 @@ It is a Modern CRM Application with Enterprise-Grade Architecture. The applicati
 - Role-Based Access Control
 - Customer Management
 - Service Management
+- Document Management
 - Project Management
 - Task Management
 - Reporting and Analytics
 
-The app utilises cutting-edge technologies and enterprise-level architectural patterns. Here's a detailed technical breakdown:
+The purpose of the app is to provide a simple but effective way to manage clients and projects. There are many current SAAS offerings for this purpose, but I wanted to build my own to have full control over the data and the application. I wanted an application that only provided the core functionality of a CRM without the bloat and fluff.
+
+The app is already built to add-on Stripe for payments and has a fully integrated email system.
+
+The app is being built in 2 phases.
+
+1. the core CRM functionality
+2. the add-ons for payments, email, and integrations with other apps, such as OpenAI and Stripe. Replace authentication with Clerk or BetterAuth, upgrade to Next.js 15, and use React-Query for state management in complex client side components.
+
+Phase 1 is in user acceptance with other freelancers. Once this is completed, it is likely I will rebuild the app to be more user friendly and add the additional features. I will also deploy React Testing Library and Cypress for end-to-end testing.
+
+The current authentication is provided by Lucia Auth, which I have removed from the NPM modules and has being built directly into the app. I did this as after I chose Lucia, the author decided to deprecate the project. In phase 2 I will investigate if I should use Clerk or BetterAuth.
+
+I will also likely use React-Query to handle the Trello like Project Board which is 'client heavy' and requires a lot of complex prop-drilling. React-Query would make it easier for state management, data fetching and caching.
+
+The app utilises cutting-edge technologies and enterprise-level architectural patterns.
 
 <Image
   src="/docs/images/gig-canvas/main-image.jpg"
@@ -32,6 +48,10 @@ The app utilises cutting-edge technologies and enterprise-level architectural pa
 - Tailwind CSS for responsive, utility-first styling
 - PostgreSQL with Supabase Database for serverless deployment
 - Drizzle ORM for type-safe database operations
+- Zustand for state management
+- Zod for data validation
+- Zod-actions for server actions
+- HTML sanitization for security
 
 ## Security & Authentication
 
@@ -43,6 +63,7 @@ The application implements a robust, multi-layered security approach:
 - Role-based access control (RBAC) with granular permissions
 - Password hashing with proper salt implementation
 - Environment-based security configurations
+- A separate data-access layer for database operations
 
 ## data validation, type safety, and security using Zod, Zod-actions, and HTML sanitization
 
