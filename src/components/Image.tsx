@@ -9,7 +9,7 @@ interface ImageProps {
 
 export function Image({ src, alt, width = 800, height = 600 }: ImageProps) {
   return (
-    <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+    <div style={{ width: '100%', maxWidth: '800px' }}>
       <NextImage
         src={src}
         alt={alt}
