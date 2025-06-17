@@ -1,0 +1,391 @@
+---
+title: AI PDF Summariser SaaS
+description: Summit is a SaaS web application that allows users to upload PDF documents and receive AI-generated, concise summaries.
+---
+
+import { Image } from '@/components/Image';
+
+## 1. Overview of What the App Does
+
+Summit is a SaaS web application that allows users to upload PDF documents and receive AI-generated, concise summaries. The platform is designed for both free and paid users, offering a beautiful, animated UI, user authentication, a dashboard for managing summaries, and a clear upgrade path for power users.
+
+**Key Features:**
+
+- Upload PDFs and receive AI-powered summaries.
+- Dashboard to manage, view, download, and delete summaries.
+- Free and Pro plans with upload limits and Stripe-powered payments.
+- Modern, animated UI with Framer Motion and Tailwind CSS.
+
+---
+
+<Image
+  src="/docs/images/ai-pdf-summariser/tooling.jpg"
+  alt="ai pdf summariser"
+  width={800}
+  height={600}
+/>
+
+## 2. Core Technology Stack
+
+#### Frameworks & Libraries
+
+- **Next.js 15** (App Router, SSR/SSG, server components)
+- **React 19**
+- **Tailwind CSS** (utility-first styling)
+- **Framer Motion** (animations)
+- **Clerk** (authentication)
+- **Stripe** (payments)
+- **UploadThing** (file uploads)
+- **Google Generative AI & LangChain** (AI summarization)
+- **Zod** (validation)
+- **PostgreSQL** (database, inferred from `pg`)
+
+#### Example: `package.json` dependencies
+
+```json
+"dependencies": {
+  "next": "15.2.4",
+  "react": "^19.0.0",
+  "tailwindcss": "^4",
+  "motion": "^12.6.3",
+  "@clerk/nextjs": "^6.10.3",
+  "stripe": "^18.1.0",
+  "@google/generative-ai": "^0.24.0",
+  "@langchain/core": "^0.3.45",
+  "zod": "^3.24.3",
+  "pg": "^8.15.6"
+}
+```
+
+---
+
+## 3. Security & Authentication
+
+Authentication is handled by [Clerk](https://clerk.com/), providing secure sign-up, sign-in, and session management. Only authenticated users can access the dashboard and upload features.
+
+#### Example: Protecting Routes
+
+```tsx
+// src/app/(logged-in)/dashboard/page.tsx
+import { currentUser } from '@clerk/nextjs/server';
+import { redirect } from 'next/navigation';
+
+export default async function DashboardPage() {
+  const user = await currentUser();
+  if (!user?.id) {
+    return redirect('/sign-in');
+  }
+  // ...rest of the code
+}
+```
+
+---
+
+## 4. Data Validation, Type Safety, and Security Using Zod
+
+[Zod](https://zod.dev/) is used for schema validation, ensuring that data from forms and APIs is type-safe and secure.
+
+#### Example: Zod Schema for Upload Validation
+
+```ts
+// src/lib/validation/upload-schema.ts
+import { z } from 'zod';
+
+export const uploadSchema = z.object({
+  file: z.instanceof(File).refine(file => file.type === 'application/pdf', {
+    message: 'Only PDF files are allowed'
+  }),
+  title: z.string().min(1, 'Title is required')
+});
+```
+
+#### Example: Using Zod in an API Route
+
+```ts
+import { uploadSchema } from '@/lib/validation/upload-schema';
+
+export async function POST(req: Request) {
+  const formData = await req.formData();
+  const parsed = uploadSchema.safeParse(formData);
+  if (!parsed.success) {
+    return new Response('Invalid data', { status: 400 });
+  }
+  // ...handle upload
+}
+```
+
+---
+
+## 5. Database Architecture
+
+The app uses PostgreSQL (via the `pg` package) for storing user data, summaries, and file metadata. The database schema is designed for scalability and security.
+
+#### Example: Fetching Summaries for a User
+
+```ts
+// src/lib/summaries.ts
+import { db } from '@/lib/db';
+
+export async function getSummaries(userId: string) {
+  return db.summary.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' }
+  });
+}
+```
+
+#### Example: Summary Table (inferred schema)
+
+```sql
+CREATE TABLE summaries (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  original_file_url TEXT,
+  title TEXT,
+  summary_text TEXT,
+  status TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## 6. Clean Architecture & Code Quality
+
+- **Component-based structure:** Reusable UI and logic components.
+- **Separation of concerns:** API, UI, and business logic are separated.
+- **TypeScript everywhere:** Ensures type safety.
+- **Linting & formatting:** Enforced via ESLint and Prettier.
+
+#### Example: Reusable Motion Components
+
+```tsx
+// src/components/common/motion-wrapper.tsx
+import { motion } from 'motion/react';
+
+export const MotionDiv = motion.div;
+export const MotionSection = motion.section;
+export const MotionH1 = motion.h1;
+export const MotionH2 = motion.h2;
+export const MotionH3 = motion.h3;
+export const MotionP = motion.p;
+export const MotionSpan = motion.span;
+```
+
+---
+
+## 7. Use of OpenAI and Gemini
+
+The application implements a robust AI pipeline using both OpenAI (GPT-4) and Google's Gemini as a fallback. This dual-provider approach ensures high availability and resilience in the summarization service.
+
+#### Primary AI Provider (OpenAI)
+
+```typescript
+// src/lib/openai.ts
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+export async function generateSummaryFromOpenAI(pdfText: string) {
+  try {
+    const response = await client.responses.create({
+      model: 'gpt-4.1',
+      input: [
+        {
+          role: 'system',
+          content: SUMMARY_SYSTEM_PROMPT
+        },
+        {
+          role: 'developer',
+          content:
+            'You are a social media content expert who makes complex documents easy and engaging to read.'
+        },
+        {
+          role: 'user',
+          content: `Transform this document into an engaging, easy-to-read summary with contextually relevant emojis and proper markdown formatting:\n\n${pdfText}`
+        }
+      ],
+      temperature: 0.7,
+      max_output_tokens: 1000
+    });
+    return response.output_text;
+  } catch (error) {
+    // Error handling...
+  }
+}
+```
+
+#### Fallback Strategy with Gemini
+
+```typescript
+// src/actions/upload-actions.ts
+export async function generatePdfSummary(
+  uploadResponse: {
+    serverData: {
+      userId: string;
+      fileUrl: string;
+      fileName: string;
+    };
+  }[]
+) {
+  // ...
+  try {
+    const pdfText = await fetchAndExtractPdfText(pdfUrl);
+    let summary;
+
+    try {
+      // Try OpenAI first
+      summary = await generateSummaryFromOpenAI(pdfText);
+    } catch (error) {
+      // Handle OpenAI errors and fallback to Gemini
+      if (error instanceof Error) {
+        if (
+          error.message.includes('429') ||
+          error.message.includes('RATE_LIMIT_EXCEEDED')
+        ) {
+          console.log('OpenAI rate limit exceeded, trying Gemini...');
+          summary = await generateSummaryFromGemini(pdfText);
+        }
+      }
+    }
+    // ...
+  } catch (err) {
+    // Error handling...
+  }
+}
+```
+
+#### Key Features of the AI Implementation
+
+1. **Dual Provider Strategy**
+
+   - OpenAI (GPT-4) as primary provider
+   - Gemini as fallback when OpenAI is unavailable or rate-limited
+
+2. **Error Handling**
+
+   - Graceful fallback on rate limits (429 errors)
+   - Service unavailability handling (503 errors)
+   - Comprehensive error messaging for users
+
+3. **Customized Prompting**
+
+   - System prompt for consistent output formatting
+   - Social media expert persona for engaging summaries
+   - Emoji and markdown formatting for better readability
+
+4. **Performance Optimization**
+   - Temperature set to 0.7 for balanced creativity/consistency
+   - Token limit management (max_output_tokens: 1000)
+   - Efficient error cascading between providers
+
+This implementation ensures high availability of the summarization service while maintaining quality through OpenAI's GPT-4 as the primary engine, with Gemini providing capable backup functionality.
+
+---
+
+<Image
+  src="/docs/images/ai-pdf-summariser/pdf-summariser.jpg"
+  alt="ai pdf summariser"
+  width={800}
+  height={600}
+/>
+
+## 8. Use of Stripe
+
+Stripe is used for payment processing and subscription management. Users can upgrade to a Pro plan for unlimited uploads.
+
+#### Example: Pricing Section
+
+```tsx
+// src/components/home/pricing-section.tsx
+<Link href={paymentLink} className="...">
+  Buy Now <ArrowRight size={18} />
+</Link>
+```
+
+#### Example: Stripe Integration (inferred)
+
+```ts
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+export async function createCheckoutSession(userId: string) {
+  return stripe.checkout.sessions.create({
+    payment_method_types: ['card'],
+    line_items: [{ price: 'pro_plan_price_id', quantity: 1 }],
+    mode: 'subscription',
+    success_url: 'https://yourapp.com/success',
+    cancel_url: 'https://yourapp.com/cancel',
+    client_reference_id: userId
+  });
+}
+```
+
+---
+
+## 9. Use of Framer Motion
+
+Framer Motion is used for smooth, interactive animations throughout the UI, enhancing user experience.
+
+#### Example: Animated Section
+
+```tsx
+// src/components/home/hero-section.tsx
+<MotionSection
+  variants={containerVariants}
+  initial="hidden"
+  animate="visible"
+  className="..."
+>
+  <MotionH1 variants={itemVariants}>
+    Transform PDFs into concise summaries
+  </MotionH1>
+  {/* ... */}
+</MotionSection>
+```
+
+---
+
+## 10. Scalability Considerations
+
+- **Serverless-ready:** Next.js 15 and API routes support serverless deployment.
+- **Database:** PostgreSQL is scalable and robust.
+- **File uploads:** Handled via UploadThing, which can scale with demand.
+- **AI Providers:** Pluggable architecture allows switching or scaling AI backends.
+- **Authentication:** Clerk handles user management and can scale with user base.
+- **Payments:** Stripe is industry-standard and scales globally.
+
+---
+
+## Additional Noteworthy Features
+
+#### Download & Delete Summaries
+
+Users can download their summaries as text files or delete them for privacy.
+
+```tsx
+// src/components/summaries/download-summary-button.tsx
+<Button onClick={handleDownload}>Download Summary</Button>
+
+// src/components/summaries/delete-button.tsx
+<Button onClick={handleDelete}>Delete</Button>
+```
+
+#### Animated, Responsive UI
+
+The app uses Tailwind CSS and Framer Motion for a modern, responsive, and animated user experience.
+
+#### User Upload Limits
+
+Upload limits are enforced based on the user's plan, with clear upgrade prompts.
+
+```tsx
+if (hasReachedLimit) {
+  redirect('/dashboard');
+}
+```
+
+---

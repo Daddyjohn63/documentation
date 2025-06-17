@@ -1,4 +1,9 @@
 {
   "title": "Projects",
-  "pages": ["gigcanvas", "finance-tracker", "portfolio-blog"]
+  "pages": [
+    "gigcanvas",
+    "finance-tracker",
+    "portfolio-blog",
+    "ai-pdf-summary-saas"
+  ]
 }
