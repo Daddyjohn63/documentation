@@ -1,0 +1,368 @@
+---
+title: Health Community Platform
+description: Summit is a SaaS web application that allows users to upload PDF documents and receive AI-generated, concise summaries.
+---
+
+import { Image } from '@/components/Image';
+
+# Technical Case Study
+
+## Project Context
+
+Natural Healing Commune is a production full-stack platform built to capture real patient journeys in a structured format:
+
+- `condition -> treatment -> outcome rating`
+
+The product combines:
+
+- role-based accounts (personal, practitioner, business),
+- subscription monetization,
+- multilingual content handling (English/Spanish),
+- searchable directory listings,
+- analytics views over treatment outcomes,
+- and operational tooling for admins.
+
+This technical case study focuses on implementation decisions, reliability guardrails, and code-level best practices used in the app.
+
+<Image
+  src="/docs/images/health-community-platform/natural-healing-image-1.jpg"
+  alt="natural healing image 1"
+  width={800}
+  height={600}
+/>
+
+## Technical Stack
+
+- Frontend: Next.js App Router, React, TypeScript, Tailwind CSS, shadcn/ui
+- API Layer: tRPC + Zod + TanStack Query
+- Data Layer: PostgreSQL (Neon) + Drizzle ORM
+- AuthN/AuthZ: Clerk
+- Billing: Stripe (Checkout, Portal, Webhooks)
+- Storage + Media: AWS S3, CloudConvert, Sharp
+- Ops: Sentry, Upstash Redis (rate limiting), Vercel
+- i18n: dual-language persistence + Google Translate API
+
+<Image
+  src="/docs/images/health-community-platform/tooling-natural-healing.jpg"
+  alt="tooling natural healing"
+  width={800}
+  height={600}
+/>
+
+## System Architecture
+
+### 1) Type-safe end-to-end API contract
+
+tRPC routers and Zod schemas are used across server and client to keep procedure input/output typed, reduce drift, and enforce validation close to the edge.
+
+```ts
+// src/server/api/routers/journeys/index.ts
+create: personalProcedure
+  .input(
+    z.object({
+      post: addConditionFormValidation
+    })
+  )
+  .mutation(async ({ input: { post: inputPost }, ctx: { auth, language } }) => {
+    // ...
+  });
+```
+
+Why it matters:
+
+- Procedure-level validation catches malformed input before business logic.
+- Shared typing lowers integration defects between frontend forms and backend mutations.
+
+### 2) Layered authorization middleware
+
+The API layer composes security middleware by access tier: public, authenticated, personal-member, admin, plus ownership checks for sensitive operations.
+
+```ts
+// src/server/api/trpc.ts
+export const protectedProcedure = publicProcedure.use(async opts => {
+  if (!opts.ctx.auth.userId) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please sign in.' });
+  }
+  return opts.next({ ctx: { ...opts.ctx, auth: opts.ctx.auth } });
+});
+
+export const adminProcedure = protectedProcedure.use(async opts => {
+  const user = await currentUser();
+  if (!user?.publicMetadata.isAdmin) {
+    throw new TRPCError({
+      code: 'UNAUTHORIZED',
+      message: 'Must be admin to complete this request.'
+    });
+  }
+  return opts.next({ ctx: opts.ctx });
+});
+```
+
+Why it matters:
+
+- Authorization rules are centralized and reusable.
+- Handlers stay focused on domain logic instead of repeated auth checks.
+
+<Image
+  src="/docs/images/health-community-platform/sign-up.jpg"
+  alt="sign up"
+  width={800}
+  height={600}
+/>
+
+### 3) Relational schema for analytics-grade data
+
+The domain model uses explicit enums, junction tables, and FK strategies (cascade/restrict/set-null) to preserve data quality while supporting analytics.
+
+```ts
+// src/server/db/schema.ts
+export const successRating = pgEnum('success_rating', ['A', 'B', 'C']);
+
+export const postToTreatment = createTable(
+  'post_to_treatment',
+  {
+    postID: uuid('post_id')
+      .notNull()
+      .references(() => post.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    treatmentID: uuid('treatment_id')
+      .notNull()
+      .references(() => treatment.id, {
+        onDelete: 'restrict',
+        onUpdate: 'cascade'
+      }),
+    successRating: successRating('success_rating'),
+    benefitOfTreatment: varchar('benefit_of_treatment').notNull().default(''),
+    benefitOfTreatment_es: varchar('benefit_of_treatment_es')
+      .notNull()
+      .default('')
+  },
+  table => ({
+    pk: primaryKey({ columns: [table.postID, table.treatmentID] })
+  })
+);
+```
+
+Why it matters:
+
+- Composite PK prevents duplicate treatment mappings per post.
+- Enum-backed ratings enforce consistent outcome values for downstream charts and filtering.
+
+## Reliability and Security Practices
+
+### Stripe webhook verification + idempotency
+
+Billing state is synchronized via webhook handlers with signature verification and duplicate-event protection.
+
+```ts
+// src/app/api/stripe/webhook/route.ts
+const signature = req.headers.get('stripe-signature');
+const body = await req.text();
+event = stripe.webhooks.constructEvent(body, signature, endpointSecret);
+
+const existing = await db
+  .select({ eventId: processedStripeEvent.eventId })
+  .from(processedStripeEvent)
+  .where(eq(processedStripeEvent.eventId, event.id))
+  .limit(1);
+
+if (existing.length > 0) {
+  return new NextResponse('Already processed', { status: 200 });
+}
+```
+
+And once successful:
+
+```ts
+await db
+  .insert(processedStripeEvent)
+  .values({ eventId: event.id })
+  .onConflictDoNothing();
+```
+
+Why it matters:
+
+- Prevents replay/duplicate side effects from webhook retries.
+- Uses Stripe-signed payload validation to ensure authenticity.
+
+### Tiered rate limiting strategy (Redis + middleware)
+
+Different risk profiles use different buckets:
+
+- public reads: IP-based,
+- authenticated interactions: user-based,
+- critical actions: stricter windows.
+
+```ts
+// src/server/api/trpc.ts
+const withUserRateLimit = (limiter: Ratelimit, tier: string) =>
+  t.middleware(async ({ ctx, next }) => {
+    const userId = ctx.auth.userId;
+    if (!userId)
+      throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Please sign in.' });
+
+    const { success } = await limiter.limit(userId);
+    if (!success) {
+      Sentry.captureMessage('Rate limit exceeded', {
+        level: 'warning',
+        tags: { rateLimitType: 'user', rateLimitTier: tier },
+        extra: { userId }
+      });
+      throw new TRPCError({
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Rate limit exceeded. Please try again later.'
+      });
+    }
+    return next({ ctx: { ...ctx, auth: { ...ctx.auth, userId } } });
+  });
+```
+
+Why it matters:
+
+- Reduces abuse and brute-force style pressure on API endpoints.
+- Uses observability hooks on limit breaches.
+
+### Strong environment validation at boot/build
+
+The app validates critical environment values and formats using Zod with explicit production constraints.
+
+```ts
+// src/env.js
+STRIPE_WEBHOOK_SECRET: z
+  .string()
+  .optional()
+  .refine(
+    (val) => process.env.NODE_ENV !== "production" || !!val,
+    "STRIPE_WEBHOOK_SECRET is required in production",
+  ),
+```
+
+Why it matters:
+
+- Fails fast on misconfiguration.
+- Prevents runtime incidents caused by missing secrets.
+
+## Data and Content Pipelines
+
+### Multilingual persistence instead of runtime-only translation
+
+For user-generated journey content, both language variants are stored at write time to improve read performance and ensure deterministic rendering.
+
+```ts
+// src/server/api/routers/journeys/index.ts
+const inputBoxes = {
+  otherInformation: inputPost.otherInformation,
+  otherInformation_es: inputPost.otherInformation
+};
+
+if (short === 'en') {
+  inputBoxes.otherInformation_es = await translateTo(
+    inputPost.otherInformation,
+    'es'
+  );
+} else {
+  inputBoxes.otherInformation = await translateTo(
+    inputPost.otherInformation,
+    'en'
+  );
+}
+```
+
+Why it matters:
+
+- Avoids translating hot read paths on every page load.
+- Keeps canonical bilingual content tied to each record revision.
+
+<Image
+  src="/docs/images/health-community-platform/account-condition-v1.jpg"
+  alt="ai pdf summariser"
+  width={800}
+  height={600}
+/>
+
+### Document ingestion with derived media assets
+
+Library content supports PDFs, images, and URLs. PDFs generate thumbnails through CloudConvert; images are resized/optimized with Sharp; assets are stored in S3.
+
+```ts
+// src/server/api/routers/library/library-v2.ts
+const job = await cloudConvert.jobs.create({
+  tasks: {
+    'import-pdf': { operation: 'import/upload' },
+    'make-thumb': {
+      operation: 'thumbnail',
+      input: ['import-pdf'],
+      input_format: 'pdf',
+      output_format: 'jpg',
+      page: 1,
+      width: 600,
+      height: 600,
+      fit: 'max'
+    },
+    'export-thumb': { operation: 'export/url', input: ['make-thumb'] }
+  }
+});
+```
+
+Upload abstraction:
+
+```ts
+// src/server/aws/s3/uploadFile.ts
+const command = new PutObjectCommand({
+  Bucket: env.AWS_S3_BUCKET_NAME,
+  Key: key,
+  Body: file,
+  ContentType: type
+});
+await client.send(command);
+```
+
+Why it matters:
+
+- Produces consistent preview UX for mixed document types.
+- Keeps file handling concerns encapsulated behind server-side utilities.
+
+<Image
+  src="/docs/images/health-community-platform/resource-library-filter.jpg"
+  alt="resource library filter"
+  width={800}
+  height={600}
+/>
+
+## Observability and Failure Handling
+
+Sentry instrumentation is integrated across API boundaries and asynchronous flows:
+
+- webhook verification failures,
+- external API failures (CloudConvert, Stripe customer lookups),
+- rate-limit pressure signals,
+- storage operations and fallback paths.
+
+Pattern example:
+
+```ts
+Sentry.captureException(error, {
+  tags: { operation: 'generatePdfThumbnail', step: 'get_thumbnail_url' },
+  extra: { jobId: finishedJob.id, exportTaskResult: exportTask?.result }
+});
+```
+
+Why it matters:
+
+- Makes production incidents diagnosable with context-rich telemetry.
+- Supports quicker MTTR for payment/content pipeline issues.
+
+## Technical Outcomes
+
+- Built a strongly typed and validated API surface with reusable middleware boundaries.
+- Implemented reliable billing synchronization through signed, idempotent webhook processing.
+- Modeled domain data for high-quality analytics queries and multilingual rendering.
+- Added operational resilience via environment validation, rate limiting, and structured error monitoring.
+
+## Best Practices Demonstrated
+
+- Contract-first API design with `tRPC + Zod`
+- Explicit auth tiers and ownership checks at middleware level
+- Idempotent event processing for external integrations
+- Data modeling that reflects domain invariants (composite keys, FK policies, enums)
+- Fail-fast configuration with runtime-safe environment parsing
+- Observability as a first-class concern in all external-service boundaries
